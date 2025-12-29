@@ -4,6 +4,14 @@ from seleniumwire.utils import decode
 import json
 from urllib.parse import parse_qs, unquote
 from fb_graphql_scraper.utils.utils import *
+from typing import Dict, List
+from jsonpath_ng.ext import parse
+
+def extract_json_path(data: Dict, path: str) -> List:
+    """使用 JSONPath 從 JSON 資料中提取特定路徑的值"""
+    json_path = parse(path)
+    matches = json_path.find(data)
+    return [match.value for match in matches]
 
 
 class RequestsParser(object):
@@ -23,13 +31,12 @@ class RequestsParser(object):
         return None
     
     def _clean_res(self):
-        self.res_new = []
         self.feedback_list = []
         self.context_list = []
         self.creation_list = []
-        self.author_id_list = []
-        self.author_id_list2 = []
         self.owning_profile = []
+        self.res_new = []
+        self.attachments_list = []  # 新增附件列表的清理
 
     def parse_body(self, body_content):
         for each_body in body_content:
@@ -37,13 +44,19 @@ class RequestsParser(object):
             self.res_new.append(json_data)
             try:
                 each_res = json_data['data']['node'].copy()
-                each_feedback = find_feedback_with_subscription_target_id(
-                    each_res)
+                each_feedback = find_feedback_with_subscription_target_id(each_res)
                 if each_feedback:
                     self.feedback_list.append(each_feedback)
                     message_text = find_message_text(json_data)
                     creation_time = find_creation(json_data)
                     owing_profile = find_owning_profile(json_data)
+                    
+                    # 提取附件資訊並儲存到新的列表中
+                    attachments = self.extract_attachments_from_json(json_data)
+                    if not hasattr(self, 'attachments_list'):
+                        self.attachments_list = []
+                    self.attachments_list.append(attachments)
+                    
                     if message_text:
                         self.context_list.append(message_text)
                     elif not message_text:
@@ -87,11 +100,15 @@ class RequestsParser(object):
             # 建構貼文URL
             post_url = f"https://www.facebook.com/{each['subscription_target_id']}"
         
+            # 使用 JSONPath 提取附件
+            json_data = self.res_new[i] if i < len(self.res_new) else {}
+            attachments = self.extract_attachments_from_json(json_data)
+        
             res_out.append({
                 "post_id": each['subscription_target_id'],
                 "post_url": [post_url],
                 "creation_time": creation_time,
-                "attachments": [],  # 暫時設為空陣列，需要額外邏輯來提取附件
+                "attachments": attachments,
                 "text": text_content,
                 "total_reaction_count": each['reaction_count']['count'] if each['reaction_count'] else 0,
                 "reactions": standardized_reactions,
@@ -99,6 +116,84 @@ class RequestsParser(object):
                 "share_count": each['share_count']['count'] if each['share_count'] else 0
             })
         return res_out
+
+    def extract_attachments_from_json(self, json_data):
+        """從 JSON 資料中提取附件 URL"""
+        attachments = []
+
+        try:
+            # 使用 JSONPath 搜尋所有可能的附件 URL
+            attachment_paths = [
+                '$..attachments..url',  # 標準的 attachments.url 路徑
+                # '$..image..uri',                 # 圖片 URI
+                # '$..photo..image..uri',          # 照片圖片 URI
+                # '$..video..playable_url',        # 影片播放 URL
+                # '$..video..browser_native_hd_url', # 影片HD URL
+                # '$..video..browser_native_sd_url', # 影片標清 URL
+                # '$..media..image..uri',          # 媒體圖片 URI
+                # '$..media..photo..image..uri'    # 媒體照片 URI
+            ]
+
+            # 搜尋每個路徑
+            for path in attachment_paths:
+                urls = extract_json_path(json_data, path)
+                attachments.extend(urls)
+
+            # 額外搜尋任何包含 Facebook CDN URL 的欄位
+            scontent_urls = extract_json_path(json_data, '$..[?(@=~/https:\\/\\/scontent.*/))]')
+            video_urls = extract_json_path(json_data, '$..[?(@=~/https:\\/\\/video.*/))]')
+
+            attachments.extend(scontent_urls)
+            attachments.extend(video_urls)
+
+        except Exception as e:
+            # 如果 JSONPath 搜尋失敗，使用備用方法
+            attachments = self.extract_attachments_fallback(json_data)
+
+        # 去重並過濾有效的 URL
+        unique_attachments = []
+        for url in attachments:
+            if (url and
+                    isinstance(url, str) and
+                    url not in unique_attachments and
+                    (url.startswith('https://scontent') or
+                     url.startswith('https://video') or
+                     url.startswith('https://external'))):
+                unique_attachments.append(url)
+
+        return unique_attachments
+
+    def extract_attachments_fallback(self, json_data):
+        """備用的附件提取方法（遞迴搜尋）"""
+        attachments = []
+
+        def find_media_recursive(data):
+            if isinstance(data, dict):
+                # 查找圖片相關的 URL
+                if 'image' in data and isinstance(data['image'], dict):
+                    if 'uri' in data['image']:
+                        attachments.append(data['image']['uri'])
+
+                # 查找影片相關的 URL
+                if 'video' in data and isinstance(data['video'], dict):
+                    for video_key in ['playable_url', 'browser_native_hd_url', 'browser_native_sd_url']:
+                        if video_key in data['video']:
+                            attachments.append(data['video'][video_key])
+
+                # 查找其他可能的媒體 URL
+                for key, value in data.items():
+                    if isinstance(value, str) and (
+                            value.startswith('https://scontent') or value.startswith('https://video')):
+                        attachments.append(value)
+                    elif isinstance(value, (dict, list)):
+                        find_media_recursive(value)
+
+            elif isinstance(data, list):
+                for item in data:
+                    find_media_recursive(item)
+
+        find_media_recursive(json_data)
+        return attachments
 
     def convert_res_to_df(self, res_in):
         converted_data = []
