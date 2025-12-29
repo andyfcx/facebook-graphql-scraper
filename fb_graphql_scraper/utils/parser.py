@@ -58,28 +58,62 @@ class RequestsParser(object):
 
     def collect_posts(self):
         res_out = []
-        for each in self.feedback_list:
+        for i, each in enumerate(self.feedback_list):
+            # 建立反應字典 - 使用中文名稱
+            reactions_dict = {}
+            for reaction in each['top_reactions']['edges']:
+                reaction_name = reaction['node']['localized_name']
+                reaction_count = reaction['reaction_count']
+                reactions_dict[reaction_name] = reaction_count
+        
+            # 確保所有反應類型都存在（如果沒有就設為0）
+            reaction_names = ["讚", "哈", "哇", "怒", "加油", "大心", "嗚"]
+            standardized_reactions = []
+            for name in reaction_names:
+                count = reactions_dict.get(name, 0)
+                standardized_reactions.append({name: count})
+        
+            # 獲取對應的文字內容和創建時間
+            text_content = self.context_list[i] if i < len(self.context_list) and self.context_list[i] else ""
+            creation_timestamp = self.creation_list[i] if i < len(self.creation_list) else None
+        
+            # 將時間戳轉換為可讀格式
+            if creation_timestamp:
+                from datetime import datetime
+                creation_time = datetime.fromtimestamp(int(creation_timestamp)).strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                creation_time = ""
+        
+            # 建構貼文URL
+            post_url = f"https://www.facebook.com/{each['subscription_target_id']}"
+        
             res_out.append({
                 "post_id": each['subscription_target_id'],
-                "reaction_count": each['reaction_count'],
-                "top_reactions": each['top_reactions'],
-                "share_count": each['share_count'],
-                "comment_rendering_instance": each['comment_rendering_instance'],
-                "video_view_count": each['video_view_count']
+                "post_url": [post_url],
+                "creation_time": creation_time,
+                "attachments": [],  # 暫時設為空陣列，需要額外邏輯來提取附件
+                "text": text_content,
+                "total_reaction_count": each['reaction_count']['count'] if each['reaction_count'] else 0,
+                "reactions": standardized_reactions,
+                "comment_count": each['comment_rendering_instance']['comments']['total_count'] if each['comment_rendering_instance'] and each['comment_rendering_instance']['comments'] else 0,
+                "share_count": each['share_count']['count'] if each['share_count'] else 0
             })
         return res_out
 
     def convert_res_to_df(self, res_in):
-        df_res = pd.json_normalize(res_in)
-        df_res = df_res[[
-            'post_id',
-            'reaction_count.count',
-            'comment_rendering_instance.comments.total_count',
-            'share_count.count',
-            'top_reactions.edges',
-            'video_view_count'
-        ]]
-        return df_res
+        converted_data = []
+        for post in res_in:
+            converted_data.append({
+                'post_id': post['post_id'],
+                'post_url': post['post_url'][0] if post['post_url'] else '',
+                'creation_time': post['creation_time'],
+                'text': post['text'],
+                'total_reaction_count': post['total_reaction_count'],
+                'reactions': post['reactions'],
+                'comment_count': post['comment_count'],
+                'share_count': post['share_count']
+            })
+        return converted_data
 
     def process_reactions(self, reactions_in) -> dict:
         """Extract sub reaction value: 
