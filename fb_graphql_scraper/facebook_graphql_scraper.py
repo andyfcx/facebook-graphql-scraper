@@ -141,36 +141,34 @@ class FacebookGraphqlScraper(FacebookSettings):
         return plugin_soup.text
     
     def format_data(self, res_in, fb_username_or_userid, new_reactions):
-        final_res = pd.json_normalize(res_in)
-        final_res['context'] = self.requests_parser.context_list
-        final_res['username_or_userid'] = fb_username_or_userid
-        final_res['owing_profile'] = self.requests_parser.owning_profile
-        final_res['sub_reactions'] = new_reactions
-        final_res['post_url'] = "https://www.facebook.com/" + final_res['post_id']
-        final_res['time'] = self.requests_parser.creation_list
-        final_res['published_date'] = pd.to_datetime(final_res['time'], unit='s')
-        final_res['published_date2'] = final_res['published_date'].dt.strftime('%Y-%m-%d')
-        final_res = final_res[[
-            'post_id',
-            'post_url',
-            'username_or_userid',
-            'owing_profile',
-            'published_date',
-            'published_date2',
-            'time',
-            'reaction_count.count',
-            'comment_rendering_instance.comments.total_count',
-            'share_count.count',
-            'sub_reactions',
-            'context',
-            'video_view_count',
-        ]].to_dict(orient="records")
-        filtered_post_id = []
+        final_res = []
+        
+        # 直接使用 res_in 的資料（來自 collect_posts）
+        for i, post_data in enumerate(res_in):
+            # 確保 post_url 是字串格式而非列表
+            post_url = post_data['post_url'][0] if isinstance(post_data['post_url'], list) else post_data['post_url']
+
+            post_info = {
+                'post_id': post_data['post_id'],
+                'post_url': post_url,
+                'creation_time': post_data['creation_time'],
+                'attachments': post_data['attachments'],
+                'text': post_data['text'],
+                'total_reaction_count': post_data['total_reaction_count'],
+                'reactions': post_data['reactions'],
+                'comment_count': post_data['comment_count'],
+                'share_count': post_data['share_count']
+            }
+            
+            final_res.append(post_info)
+
+        filtered_post_id = set()
         filtered_data = []
-        for each_data in list(final_res):
+        for each_data in final_res:
             if each_data["post_id"] not in filtered_post_id:
                 filtered_data.append(each_data)
-                filtered_post_id.append(each_data["post_id"])
+                filtered_post_id.add(each_data["post_id"])
+        
         return filtered_data
 
     def process_reactions(self, res_in):

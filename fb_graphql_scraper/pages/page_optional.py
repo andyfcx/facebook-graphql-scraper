@@ -76,7 +76,7 @@ class PageOptional(object):
         while i <= clear_limit:
             self.clean_requests()
             if len(self.driver.requests) == 0:
-                print("Clear all driver requests already!")
+                print("Cleared all driver requests!")
                 break
             i += 1
         self.driver.get(url=url)
