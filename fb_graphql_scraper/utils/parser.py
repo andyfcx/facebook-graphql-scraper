@@ -140,25 +140,21 @@ class RequestsParser(object):
                 attachments.extend(urls)
 
             # 額外搜尋任何包含 Facebook CDN URL 的欄位
-            scontent_urls = extract_json_path(json_data, '$..[?(@=~/https:\\/\\/scontent.*/))]')
             video_urls = extract_json_path(json_data, '$..[?(@=~/https:\\/\\/video.*/))]')
 
-            attachments.extend(scontent_urls)
             attachments.extend(video_urls)
 
         except Exception as e:
             # 如果 JSONPath 搜尋失敗，使用備用方法
             attachments = self.extract_attachments_fallback(json_data)
 
-        # 去重並過濾有效的 URL
         unique_attachments = []
         for url in attachments:
             if (url and
                     isinstance(url, str) and
                     url not in unique_attachments and
-                    (url.startswith('https://scontent') or
                      url.startswith('https://video') or
-                     url.startswith('https://external'))):
+                     url.startswith('https://external')):
                 unique_attachments.append(url)
 
         return unique_attachments
