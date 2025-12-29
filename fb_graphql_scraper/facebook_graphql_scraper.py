@@ -174,12 +174,12 @@ class FacebookGraphqlScraper(FacebookSettings):
         return filtered_data
 
     def process_reactions(self, res_in):
-        reactions_out = []
-        for each_res in res_in:
-            each_reactions = each_res['top_reactions']['edges']
-            processed_reactions = self.requests_parser.process_reactions(
-                reactions_in=each_reactions)
-            reactions_out.append(processed_reactions)
+        reactions_out = res_in
+        # for each_res in res_in:
+        #     each_reactions = each_res['top_reactions']['edges']
+        #     processed_reactions = self.requests_parser.process_reactions(
+        #         reactions_in=each_reactions)
+        #     reactions_out.append(processed_reactions)
         return reactions_out
     
     def get_init_payload(self):
