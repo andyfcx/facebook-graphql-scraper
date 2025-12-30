@@ -5,9 +5,10 @@ from fb_graphql_scraper.facebook_graphql_scraper import FacebookGraphqlScraper a
 ## Example.1 - without logging in
 if __name__ == "__main__":
     facebook_user_name = "love.yuweishao"
-    facebook_user_id = "100044253168423"
-    days_limit = 100 # Number of days within which to scrape posts
-    driver_path = "/Users/hongshangren/Downloads/chromedriver-mac-arm64_136/chromedriver" 
+    facebook_user_id = "subing.fb.u"
+    days_limit = 3 # Number of days within which to scrape posts
+    # driver_path = "/Users/hongshangren/Downloads/chromedriver-mac-arm64_136/chromedriver"
+    driver_path = "/Users/andy/DTL/FB-GQL/chromedriver"
     fb_spider = fb_graphql_scraper(driver_path=driver_path, open_browser=False)
     res = fb_spider.get_user_posts(fb_username_or_userid=facebook_user_id, days_limit=days_limit,display_progress=True)
 
