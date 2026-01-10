@@ -77,6 +77,11 @@ class FacebookSettings:
             "comment_share_type": [],
             "comment_share_value": []
         }
+        # Store last successful user_id and doc_id
+        if not hasattr(self, 'last_user_id'):
+            self.last_user_id = None
+        if not hasattr(self, 'last_doc_id'):
+            self.last_doc_id = None
 
     def _set_stop_point(self):
         self.pre_diff_days = float("-inf")
@@ -203,17 +208,34 @@ class FacebookGraphqlScraper(FacebookSettings):
             self.page_optional.click_reject_login_button()
             time.sleep(2)
             self.page_optional.scroll_window_with_parameter("4000")
+
+            # Initialize variables
+            user_id = None
+            doc_id = None
+
             for _ in range(30):
                 try:
                     init_payload = self.get_init_payload()
                     payload_variables = init_payload.get("variables")
                     user_id = str(payload_variables["id"])
                     doc_id = str(init_payload.get("doc_id"))
+                    # Store successful values
+                    self.last_user_id = user_id
+                    self.last_doc_id = doc_id
                     print("Collect posts wihout loggin in.")
                     break
                 except Exception as e:
                     print("Wait 1 second to load page")
                     time.sleep(1)
+
+            # Check if variables were successfully obtained, use last values if available
+            if user_id is None or doc_id is None:
+                if self.last_user_id is not None and self.last_doc_id is not None:
+                    user_id = self.last_user_id
+                    doc_id = self.last_doc_id
+                    print(f"Using previous user_id and doc_id values: {user_id}, {doc_id}")
+                else:
+                    raise ValueError("Failed to obtain user_id or doc_id after 30 attempts. Cannot proceed with data collection.")
 
         # Get profile information
         try:
