@@ -113,12 +113,68 @@ class PageOptional(object):
                             f"Click display more unsucessfully, error message:\n{e}")
 
     def click_reject_login_button(self):
+        """Attempts to reject Facebook login popup with multiple fallback strategies"""
+
+        # Strategy 1: Try primary locator
         try:
-            reject_login_button = WebDriverWait(self.driver, 10).until(
-            EC.visibility_of_element_located((self.locator.CLOSELOGIN)))
+            reject_login_button = WebDriverWait(self.driver, 5).until(
+                EC.visibility_of_element_located(self.locator.CLOSELOGIN))
             reject_login_button.click()
+            print("Successfully closed login popup using primary locator")
+            return
         except Exception as e:
-            print(f"Click reject button failed, message:{e}")
+            print(f"Primary locator failed: {e}")
+
+        # Strategy 2: Try alternative XPath from PageXpath
+        try:
+            reject_login_button = WebDriverWait(self.driver, 3).until(
+                EC.visibility_of_element_located((By.XPATH, self.xpath_elements.CLOSE_LOGIN_BUTTON)))
+            reject_login_button.click()
+            print("Successfully closed login popup using alternative XPath")
+            return
+        except Exception as e:
+            print(f"Alternative XPath failed: {e}")
+
+        # Strategy 3: Try finding close button by aria-label
+        try:
+            close_buttons = self.driver.find_elements(By.XPATH, "//div[@aria-label='Close' or @aria-label='关闭' or @aria-label='關閉']")
+            if close_buttons:
+                close_buttons[0].click()
+                print("Successfully closed login popup using aria-label")
+                return
+        except Exception as e:
+            print(f"Aria-label strategy failed: {e}")
+
+        # Strategy 4: Try finding "Not Now" or similar buttons
+        try:
+            not_now_buttons = self.driver.find_elements(By.XPATH,
+                "//*[contains(text(), 'Not Now') or contains(text(), '暫時不要') or contains(text(), '以后再说')]")
+            if not_now_buttons:
+                not_now_buttons[0].click()
+                print("Successfully dismissed login popup using 'Not Now' button")
+                return
+        except Exception as e:
+            print(f"'Not Now' button strategy failed: {e}")
+
+        # Strategy 5: Press ESC key to dismiss modal
+        try:
+            ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
+            time.sleep(1)
+            print("Successfully dismissed login popup using ESC key")
+            return
+        except Exception as e:
+            print(f"ESC key strategy failed: {e}")
+
+        # Strategy 6: Try clicking on modal overlay/backdrop
+        try:
+            overlay = self.driver.find_element(By.XPATH, "//div[@role='dialog']/..")
+            ActionChains(self.driver).move_to_element_with_offset(overlay, 10, 10).click().perform()
+            print("Successfully dismissed login popup by clicking overlay")
+            return
+        except Exception as e:
+            print(f"Overlay click strategy failed: {e}")
+
+        print("All strategies to reject login failed. Continuing without dismissing popup.")
 
     def quit_driver(self):
         self.driver.quit()
