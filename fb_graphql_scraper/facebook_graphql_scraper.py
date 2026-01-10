@@ -235,7 +235,10 @@ class FacebookGraphqlScraper(FacebookSettings):
                     doc_id = self.last_doc_id
                     print(f"Using previous user_id and doc_id values: {user_id}, {doc_id}")
                 else:
-                    raise ValueError("Failed to obtain user_id or doc_id after 30 attempts. Cannot proceed with data collection.")
+                    print("Warning: Failed to obtain user_id or doc_id after 30 attempts. Will collect profile data only.")
+                    # Set flag to indicate we should return partial data
+                    user_id = None
+                    doc_id = None
 
         # Get profile information
         try:
@@ -258,9 +261,36 @@ class FacebookGraphqlScraper(FacebookSettings):
         if "Page" in profile_feed:
             followers = self.get_plugin_page_followers(fb_username_or_userid=fb_username_or_userid)
             if followers: profile_feed.append(followers)
-          
-        # collect data without login  
+
+        # collect data without login
         if self.fb_account == None:
+            # If user_id or doc_id is None, collect whatever data is available from stored requests
+            if user_id is None or doc_id is None:
+                print("Warning: Could not obtain user_id or doc_id. Collecting available data from stored requests.")
+                # Collect data from stored requests
+                driver_requests = self.page_optional.driver.requests
+                for req in driver_requests:
+                    req_response, req_url = req.response, req.url
+                    body_out = self.requests_parser.get_graphql_body_content(
+                        req_response=req_response, req_url=req_url)
+                    if body_out:
+                        self.requests_parser.parse_body(body_content=body_out)
+
+                res_out = self.requests_parser.collect_posts()
+                new_reactions = self.process_reactions(res_in=res_out)
+
+                # Format and return the collected data
+                final_res = self.format_data(
+                    res_in=res_out,
+                    fb_username_or_userid=fb_username_or_userid,
+                    new_reactions=new_reactions
+                )
+                print(f"Returning partial data: collected {len(final_res)} posts from stored requests.")
+                return {
+                    "fb_username_or_userid": fb_username_or_userid,
+                    "profile": profile_feed,
+                    "data": final_res,
+                }
             res = self.requests_flow(doc_id = doc_id, fb_username_or_userid=user_id, days_limit=days_limit, profile_feed=profile_feed, display_progress=display_progress)
             return res
 
