@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from typing import List
 from fb_graphql_scraper.utils.locator import *
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -9,7 +10,8 @@ import time
 
 
 class PageOptional(object):
-    def __init__(self, driver=None, fb_account: str = None, fb_pwd: str = None):
+    def __init__(self, driver=None, fb_account: str = None, fb_pwd: str = None,
+                 session_manager=None, use_session_persistence: bool = True):
         self.locator = PageLocators
         self.xpath_elements = PageXpath
         self.class_elements = PageClass
@@ -17,12 +19,30 @@ class PageOptional(object):
         self.driver = driver
         self.fb_account = fb_account
         self.fb_pwd = fb_pwd
+        self.session_manager = session_manager
+        self.use_session_persistence = use_session_persistence
+
+        # Try to load existing session first
+        if self.use_session_persistence and self.session_manager:
+            # Try to load existing session
+            if self._try_load_existing_session():
+                print("Successfully loaded existing session")
+                return
+
+            # Try auto-login from saved credentials
+            if self._try_auto_login_from_saved_credentials():
+                print("Auto-logged in using saved credentials")
+                return
 
         # Loggin account
         if self.fb_account and self.fb_pwd:
             login_page_url = "https://www.facebook.com/login"
             self.driver.get(url=login_page_url)
             self.login_page()
+
+            # Save session after successful login
+            if self.use_session_persistence and self.session_manager:
+                self._save_session_after_login()
 
     def login_page(self):
         try:
@@ -181,3 +201,231 @@ class PageOptional(object):
 
     def close_driver(self):
         self.driver.close()
+
+    # Session Management Methods
+
+    def _try_load_existing_session(self) -> bool:
+        """
+        Try to load existing session from disk.
+
+        Returns:
+            True if session loaded and validated successfully, False otherwise
+        """
+        try:
+            if not self.session_manager.has_valid_session():
+                print("No valid session file found")
+                return False
+
+            session_data = self.session_manager.load_session()
+            if not session_data or not session_data.get('cookies'):
+                print("No cookies in session data")
+                return False
+
+            print(f"Loading session with {len(session_data['cookies'])} cookies")
+
+            # Inject cookies into driver
+            if not self._inject_cookies_into_driver(session_data['cookies']):
+                print("Failed to inject cookies")
+                return False
+
+            # Validate session
+            if not self._is_logged_in():
+                print("Session validation failed - cookies expired or invalid")
+                self.session_manager.clear_session()
+                return False
+
+            print("Session loaded and validated successfully")
+            return True
+
+        except Exception as e:
+            print(f"Error loading existing session: {e}")
+            return False
+
+    def _try_auto_login_from_saved_credentials(self) -> bool:
+        """
+        Try to auto-login using saved credentials.
+
+        Returns:
+            True if auto-login successful, False otherwise
+        """
+        try:
+            session_data = self.session_manager.load_session()
+            if not session_data or not session_data.get('credentials'):
+                print("No saved credentials found")
+                return False
+
+            credentials = session_data['credentials']
+            fb_account = credentials.get('fb_account')
+            fb_pwd = credentials.get('fb_pwd')
+
+            if not fb_account or not fb_pwd:
+                print("Incomplete credentials in session data")
+                return False
+
+            print("Attempting auto-login with saved credentials")
+
+            # Perform login
+            login_page_url = "https://www.facebook.com/login"
+            self.driver.get(url=login_page_url)
+            time.sleep(2)
+
+            self.login_account(user=fb_account, password=fb_pwd)
+            time.sleep(5)
+
+            # Validate login succeeded
+            if not self._is_logged_in():
+                print("Auto-login failed - credentials may be invalid")
+                return False
+
+            print("Auto-login successful")
+
+            # Save new session
+            self._save_session_after_login()
+
+            return True
+
+        except Exception as e:
+            print(f"Error during auto-login: {e}")
+            return False
+
+    def _save_session_after_login(self):
+        """Save session cookies and credentials after successful login."""
+        try:
+            cookies = self.driver.get_cookies()
+            print(f"Saving session with {len(cookies)} cookies")
+
+            credentials = None
+            if self.fb_account and self.fb_pwd:
+                credentials = {
+                    'fb_account': self.fb_account,
+                    'fb_pwd': self.fb_pwd
+                }
+
+            metadata = {
+                'user_agent': self.driver.execute_script("return navigator.userAgent;"),
+                'login_url': 'https://www.facebook.com/login'
+            }
+
+            self.session_manager.save_session(
+                cookies=cookies,
+                credentials=credentials,
+                metadata=metadata
+            )
+
+        except Exception as e:
+            print(f"Error saving session: {e}")
+
+    def _is_logged_in(self) -> bool:
+        """
+        Check if currently logged into Facebook.
+
+        Returns:
+            True if logged in, False otherwise
+        """
+        try:
+            current_url = self.driver.current_url
+
+            # Check if on login page
+            if 'login' in current_url.lower():
+                return False
+
+            # Check for login form (indicates NOT logged in)
+            try:
+                from selenium.webdriver.common.by import By
+                login_forms = self.driver.find_elements(By.CSS_SELECTOR, '[data-testid="royal_login_form"]')
+                if login_forms:
+                    return False
+            except:
+                pass
+
+            # Check for profile elements (indicates logged in)
+            try:
+                from selenium.webdriver.common.by import By
+                # Look for navigation elements that only appear when logged in
+                profile_elements = self.driver.find_elements(By.CSS_SELECTOR, '[aria-label*="Account"]')
+                if not profile_elements:
+                    profile_elements = self.driver.find_elements(By.CSS_SELECTOR, '[aria-label*="Your profile"]')
+                if not profile_elements:
+                    # Check for presence of feed or other logged-in indicators
+                    profile_elements = self.driver.find_elements(By.CSS_SELECTOR, '[role="feed"]')
+                if not profile_elements:
+                    # Check for home link or other common elements
+                    profile_elements = self.driver.find_elements(By.CSS_SELECTOR, '[href="/"]')
+
+                if profile_elements:
+                    return True
+            except Exception as e:
+                print(f"Error checking for profile elements: {e}")
+
+            # If we can't definitively determine, check page source
+            try:
+                page_source = self.driver.page_source
+                # If we see typical logged-in elements in the source
+                if '"actorID"' in page_source or '"USER_ID"' in page_source:
+                    return True
+            except:
+                pass
+
+            return False
+
+        except Exception as e:
+            print(f"Error checking login status: {e}")
+            return False
+
+    def _inject_cookies_into_driver(self, cookies: List) -> bool:
+        """
+        Inject cookies into driver.
+
+        Args:
+            cookies: List of cookie dictionaries
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Navigate to Facebook to set domain
+            self.driver.get('https://www.facebook.com')
+            time.sleep(2)
+
+            # Clear existing cookies
+            self.driver.delete_all_cookies()
+
+            # Add each cookie
+            current_time = time.time()
+            for cookie in cookies:
+                # Remove 'expiry' if it's in the past
+                if 'expiry' in cookie:
+                    if cookie['expiry'] < current_time:
+                        print(f"Skipping expired cookie: {cookie['name']}")
+                        continue
+
+                try:
+                    # Remove any keys that Selenium doesn't accept
+                    clean_cookie = {
+                        'name': cookie['name'],
+                        'value': cookie['value'],
+                        'domain': cookie.get('domain', '.facebook.com'),
+                        'path': cookie.get('path', '/'),
+                    }
+
+                    # Add optional fields if present
+                    if 'expiry' in cookie:
+                        clean_cookie['expiry'] = cookie['expiry']
+                    if 'secure' in cookie:
+                        clean_cookie['secure'] = cookie['secure']
+                    if 'httpOnly' in cookie:
+                        clean_cookie['httpOnly'] = cookie['httpOnly']
+
+                    self.driver.add_cookie(clean_cookie)
+                except Exception as e:
+                    print(f"Failed to add cookie {cookie.get('name')}: {e}")
+
+            # Refresh to apply cookies
+            self.driver.refresh()
+            time.sleep(3)
+
+            return True
+
+        except Exception as e:
+            print(f"Error injecting cookies: {e}")
+            return False

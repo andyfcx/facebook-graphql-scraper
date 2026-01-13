@@ -38,13 +38,23 @@ class FacebookSettings:
         # res = fb_spider.get_user_posts(fb_username_or_userid=facebook_user_name, days_limit=days_limit,display_progress=True)
         # print(res)
     """
-    def __init__(self, fb_account: str = None, fb_pwd: str = None, driver_path: str = None, open_browser: bool = False):
+    def __init__(self, fb_account: str = None, fb_pwd: str = None, driver_path: str = None,
+                 open_browser: bool = False, use_session_persistence: bool = True,
+                 session_storage_dir: str = '~/.fb_scraper'):
         super().__init__()
         self.fb_account = fb_account
         self.fb_pwd = fb_pwd
         self.driver_path = driver_path
+        self.use_session_persistence = use_session_persistence
+
+        # Initialize session manager
+        self.session_manager = None
+        if self.use_session_persistence:
+            from fb_graphql_scraper.utils.session_manager import SessionManager
+            self.session_manager = SessionManager(storage_dir=session_storage_dir)
+
         self._set_spider(
-            driver_path=driver_path, 
+            driver_path=driver_path,
             open_browser=open_browser
         )
         self._set_container()
@@ -55,13 +65,15 @@ class FacebookSettings:
         but some accounts cannot display info if you don't login account
         Args: url (str): target user which you want to collect data."""
         self.base_page = BasePage(
-            driver_path=driver_path, 
+            driver_path=driver_path,
             open_browser=open_browser
         )
         self.page_optional = PageOptional(
             driver=self.base_page.driver,
             fb_account=self.fb_account,
-            fb_pwd=self.fb_pwd
+            fb_pwd=self.fb_pwd,
+            session_manager=self.session_manager,
+            use_session_persistence=self.use_session_persistence
         )
         time.sleep(3)
         self.requests_parser = RequestsParser(driver=self.page_optional.driver)
@@ -89,8 +101,12 @@ class FacebookSettings:
 
 
 class FacebookGraphqlScraper(FacebookSettings):
-    def __init__(self, fb_account: str = None, fb_pwd: str = None, driver_path: str = None, open_browser: bool = False):
-        super().__init__(fb_account=fb_account, fb_pwd=fb_pwd, driver_path=driver_path,open_browser=open_browser)
+    def __init__(self, fb_account: str = None, fb_pwd: str = None, driver_path: str = None,
+                 open_browser: bool = False, use_session_persistence: bool = True,
+                 session_storage_dir: str = '~/.fb_scraper'):
+        super().__init__(fb_account=fb_account, fb_pwd=fb_pwd, driver_path=driver_path,
+                        open_browser=open_browser, use_session_persistence=use_session_persistence,
+                        session_storage_dir=session_storage_dir)
 
     def check_progress(self, days_limit: int = 61, display_progress:bool=True):
         """Check the published date of collected posts"""
