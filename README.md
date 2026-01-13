@@ -1,33 +1,31 @@
 # Facebook GraphQL Scraper
+Forked from FaustRen's [FB_graphql_scraper](https://github.com/FaustRen/FB_graphql_scraper)
 
 ## Install
 
-To install the latest release from PyPI:
+This project uses [uv](https://github.com/astral-sh/uv) for fast dependency management.
+
+### Install from PyPI
 
 ```sh
+# Using uv (recommended)
+uv pip install facebook-graphql-scraper
+
+# Or using pip
 pip install facebook-graphql-scraper
 ```
 
-## Requirements
+### Install for development
 
 ```sh
-ipython==8.19.0
-pytz==2023.3.post1
-selenium_wire==5.1.0
-tqdm==4.66.1
+# Clone the repository
+git clone https://github.com/andyfcx/facebook-graphql-scraper
+cd FB_graphql_scraper
+
+# Install dependencies using uv
+uv pip install -e .
 ```
 
-# Support Me
-
-If you enjoy this project and would like to support me, please consider donating 🙌  
-Your support will help me continue developing this project and working on other exciting ideas!
-
-## 💖 Ways to Support:
-
-- **PayPal**: [https://www.paypal.me/faustren1z](https://www.paypal.me/faustren1z)
-- **Buy Me a Coffee**: [https://buymeacoffee.com/faustren1z](https://buymeacoffee.com/faustren1z)
-
-Thank you for your support!! 🎉
 
 ### Usage
 
@@ -51,20 +49,6 @@ if __name__ == "__main__":
     fb_spider = fb_graphql_scraper(driver_path=driver_path, open_browser=False)
     res = fb_spider.get_user_posts(fb_username_or_userid=facebook_user_id, days_limit=days_limit,display_progress=True)
     # print(res)
-
-
-## Example.2 - login in your facebook account to collect data
-# if __name__ == "__main__":
-    # facebook_user_name = "love.yuweishao"
-    # facebook_user_id = "100044253168423"
-    # fb_account = "facebook_account"
-    # fb_pwd = "facebook_paswword"
-    # days_limit = 30 # Number of days within which to scrape posts
-    # driver_path = "/Users/hongshangren/Downloads/chromedriver-mac-arm64_136/chromedriver" 
-    # fb_spider = fb_graphql_scraper(fb_account=fb_account,fb_pwd=fb_pwd, driver_path=driver_path, open_browser=False)
-    # res = fb_spider.get_user_posts(fb_username_or_userid=facebook_user_name, days_limit=days_limit,display_progress=True)
-    # print(res)
-    
 
 
 ```
