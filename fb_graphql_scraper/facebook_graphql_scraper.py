@@ -381,7 +381,7 @@ class FacebookGraphqlScraper(FacebookSettings):
                 )
                 is_first_time = False
                 
-            # if not the first tiime send request, use function 'get_next_payload' for extracting end cursor to scrape next round
+            # if not the first time send request, use function 'get_next_payload' for extracting end cursor to scrape next round
             elif not is_first_time:
                 next_cursor = get_next_cursor(body_content_in=body_content)
                 payload_in = get_next_payload(
