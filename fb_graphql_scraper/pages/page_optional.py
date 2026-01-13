@@ -7,6 +7,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 import time
+import logging
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 class PageOptional(object):
@@ -71,6 +75,21 @@ class PageOptional(object):
         password_element = self.driver.find_element(By.NAME, "pass")
         password_element.send_keys(password)
         password_element.send_keys(Keys.ENTER)
+
+        # Wait for page to process login
+        time.sleep(3)
+
+        # Check for captcha challenge
+        if self._check_for_captcha():
+            logger.warning("Login challenged by captcha. Attempting to solve captcha.")
+            self._solve_captcha()
+
+        # Verify login success
+        time.sleep(2)
+        if not self._is_logged_in():
+            error_msg = "Login failed. Unable to verify successful login."
+            logger.error(error_msg)
+            raise Exception(error_msg)
 
     def scroll_window(self):
         self.driver.execute_script(
@@ -429,3 +448,77 @@ class PageOptional(object):
         except Exception as e:
             print(f"Error injecting cookies: {e}")
             return False
+
+    def _check_for_captcha(self) -> bool:
+        """
+        Check if a captcha challenge is present on the page.
+
+        Returns:
+            True if captcha is detected, False otherwise
+        """
+        try:
+            # Check for common captcha indicators
+            captcha_indicators = [
+                # Facebook captcha iframe
+                (By.CSS_SELECTOR, 'iframe[title*="captcha"]'),
+                (By.CSS_SELECTOR, 'iframe[src*="captcha"]'),
+                # reCAPTCHA
+                (By.CSS_SELECTOR, 'iframe[src*="recaptcha"]'),
+                (By.CSS_SELECTOR, '.g-recaptcha'),
+                # hCaptcha
+                (By.CSS_SELECTOR, 'iframe[src*="hcaptcha"]'),
+                (By.CSS_SELECTOR, '.h-captcha'),
+                # Generic captcha elements
+                (By.XPATH, "//*[contains(text(), 'Security Check')]"),
+                (By.XPATH, "//*[contains(text(), 'captcha')]"),
+                (By.XPATH, "//*[contains(text(), 'Captcha')]"),
+                (By.XPATH, "//*[contains(text(), 'CAPTCHA')]"),
+            ]
+
+            for by, selector in captcha_indicators:
+                try:
+                    elements = self.driver.find_elements(by, selector)
+                    if elements and elements[0].is_displayed():
+                        logger.info(f"Captcha detected using selector: {selector}")
+                        return True
+                except Exception:
+                    continue
+
+            return False
+
+        except Exception as e:
+            logger.error(f"Error checking for captcha: {e}")
+            return False
+
+    def _solve_captcha(self):
+        """
+        Attempt to solve the captcha challenge.
+
+        This method provides a framework for captcha solving. In production,
+        you would integrate with a captcha solving service or implement
+        manual intervention.
+        """
+        try:
+            logger.warning("Captcha solving requires manual intervention or external service.")
+
+            # Wait for potential manual solving
+            # In production, you might integrate with services like:
+            # - 2Captcha
+            # - Anti-Captcha
+            # - DeathByCaptcha
+            # Or implement manual intervention with extended timeout
+
+            max_wait_time = 120  # 2 minutes for manual solving
+            start_time = time.time()
+
+            while time.time() - start_time < max_wait_time:
+                if not self._check_for_captcha():
+                    logger.info("Captcha appears to be solved.")
+                    return
+                time.sleep(2)
+
+            logger.warning("Captcha solving timeout reached. Continuing with login verification.")
+
+        except Exception as e:
+            logger.error(f"Error during captcha solving: {e}")
+            raise
