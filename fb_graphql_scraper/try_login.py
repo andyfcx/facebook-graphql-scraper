@@ -3,7 +3,7 @@
 Facebook GraphQL Scraper - Login Test Script
 ==============================================
 此腳本用於測試Facebook登錄功能，支持以下功能：
-1. 從命令行輸入帳號和密碼
+1. 從 .env 文件讀取帳號、密碼和chromedriver路徑
 2. 自動打開瀏覽器
 3. 模擬人類輸入行為（添加延遲和隨機延遲）
 4. 驗證登錄是否成功
@@ -13,6 +13,8 @@ import time
 import sys
 import getpass
 from pathlib import Path
+from dotenv import load_dotenv
+import os
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
@@ -198,28 +200,44 @@ class FacebookLoginTester(BasePage):
 
 def get_credentials():
     """
-    安全地從用戶輸入獲取登錄憑據
+    從 .env 文件獲取登錄憑據
+    如果 .env 中的值為空，則提示用戶輸入
     
     Returns:
         tuple: (email, password)
     """
+    # 加載 .env 文件
+    env_path = Path(__file__).parent / ".env"
+    load_dotenv(env_path)
+    
+    # 從環境變量讀取
+    email = os.getenv("FB_EMAIL", "").strip()
+    password = os.getenv("FB_PASSWORD", "").strip()
+    
     print("\n" + "="*50)
-    print("Facebook登錄測試 - 憑據輸入")
+    print("Facebook登錄測試 - 憑據配置")
     print("="*50)
-    print("\n請輸入您的Facebook帳號信息:")
-    print("(系統將安全地處理密碼 - 輸入時不會顯示密碼)\n")
     
-    # 獲取電子郵件/電話
-    email = input("請輸入Facebook帳號 (郵箱或電話): ").strip()
+    # 如果 .env 中沒有設置，則提示用戶輸入
     if not email:
-        print("✗ 帳號不能為空！")
-        return None, None
+        print("\n在 .env 文件中未找到 FB_EMAIL")
+        print("請輸入您的Facebook帳號信息:\n")
+        email = input("請輸入Facebook帳號 (郵箱或電話): ").strip()
+        if not email:
+            print("✗ 帳號不能為空！")
+            return None, None
+    else:
+        print(f"\n✓ 已從 .env 加載帳號: {email[:3]}***")
     
-    # 安全地獲取密碼（不在終端顯示）
-    password = getpass.getpass("請輸入Facebook密碼: ")
     if not password:
-        print("✗ 密碼不能為空！")
-        return None, None
+        print("\n在 .env 文件中未找到 FB_PASSWORD")
+        print("(系統將安全地處理密碼 - 輸入時不會顯示密碼)\n")
+        password = getpass.getpass("請輸入Facebook密碼: ")
+        if not password:
+            print("✗ 密碼不能為空！")
+            return None, None
+    else:
+        print(f"✓ 已從 .env 加載密碼")
     
     return email, password
 
@@ -230,17 +248,27 @@ def main():
     print("  Facebook GraphQL Scraper - 登錄測試工具")
     print("="*60)
     
-    # 配置Chrome驅動程序路徑
-    # 你需要根據自己的系統修改這個路徑
-    # 例如：
-    # macOS: /usr/local/bin/chromedriver 或 /opt/homebrew/bin/chromedriver
-    # Linux: /usr/local/bin/chromedriver
-    # Windows: C:\\path\\to\\chromedriver.exe
+    # 加載 .env 文件
+    env_path = Path(__file__).parent / ".env"
+    load_dotenv(env_path)
     
-    driver_path = input("\n請輸入Chrome驅動程序的完整路徑: ").strip()
+    # 從環境變量讀取 ChromeDriver 路徑
+    driver_path = os.getenv("CHROMEDRIVER_PATH", "").strip()
+    
+    # 如果 .env 中沒有設置，則提示用戶輸入
+    if not driver_path:
+        print("\n在 .env 文件中未找到 CHROMEDRIVER_PATH")
+        print("\n請輸入Chrome驅動程序的完整路徑:")
+        print("提示：可以通過以下方式獲取:")
+        print("  1. 訪問 https://chromedriver.chromium.org/")
+        print("  2. 下載與你Chrome版本相對應的驅動程序")
+        print("  3. 將驅動程序放在上述路徑中\n")
+        driver_path = input("請輸入Chrome驅動程序的完整路徑: ").strip()
+    else:
+        print(f"\n✓ 已從 .env 加載 ChromeDriver 路徑")
     
     if not Path(driver_path).exists():
-        print(f"✗ 找不到Chrome驅動程序: {driver_path}")
+        print(f"\n✗ 找不到Chrome驅動程序: {driver_path}")
         print("提示：可以通過以下方式獲取:")
         print("  1. 訪問 https://chromedriver.chromium.org/")
         print("  2. 下載與你Chrome版本相對應的驅動程序")
@@ -254,7 +282,6 @@ def main():
     if not email or not password:
         return
     
-    # 創建登錄測試器並執行登錄
     tester = None
     try:
         print("\n正在啟動Chrome瀏覽器...")
