@@ -97,6 +97,32 @@ class ChromeDriverManager:
         """
         match = re.match(r'(\d+)', version)
         return int(match.group(1)) if match else None
+
+    def get_chromedriver_version(self, driver_path: Path) -> Optional[str]:
+        """
+        獲取ChromeDriver版本
+        
+        Args:
+            driver_path: ChromeDriver可執行文件路徑
+            
+        Returns:
+            ChromeDriver版本字符串 (例如: '130.0.1234.56')，如果未找到則返回None
+        """
+        try:
+            output = subprocess.check_output([str(driver_path), "--version"]).decode().strip()
+            match = re.search(r'(\d+\.\d+\.\d+\.\d+)', output)
+            return match.group(1) if match else None
+        except Exception as e:
+            print(f"⚠️ 無法檢測ChromeDriver版本 ({driver_path}): {e}")
+            return None
+
+    def _is_version_compatible(self, chrome_version: str, driver_version: str) -> bool:
+        """
+        檢查Chrome與ChromeDriver版本是否相容（主版本號匹配）
+        """
+        chrome_major = self.get_major_version(chrome_version)
+        driver_major = self.get_major_version(driver_version)
+        return chrome_major is not None and driver_major is not None and chrome_major == driver_major
     
     def get_download_url(self, chrome_version: str) -> Optional[str]:
         """
@@ -170,7 +196,7 @@ class ChromeDriverManager:
             ChromeDriver文件路徑，下載失敗則返回None
         """
         try:
-            print(f"⬇️ 正在下載ChromeDriver...")
+            print(f"正在下載ChromeDriver...")
             filename = self.save_path / "chromedriver.zip"
             
             # 顯示下載進度
@@ -180,12 +206,12 @@ class ChromeDriverManager:
                 print(f"\r⏳ 下載進度: {percent}%", end="")
             
             urllib.request.urlretrieve(url, filename, download_progress)
-            print("\n✅ 下載完成")
+            print("\n下載完成")
             
             return self._extract_and_install(filename)
             
         except Exception as e:
-            print(f"❌ 下載失敗: {e}")
+            print(f"下載失敗: {e}")
             return None
     
     def _extract_and_install(self, zip_path: Path) -> Optional[Path]:
@@ -199,7 +225,7 @@ class ChromeDriverManager:
             ChromeDriver可執行文件的路徑
         """
         try:
-            print(f"📦 正在解壓ChromeDriver...")
+            print(f"正在解壓ChromeDriver...")
             
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(self.save_path)
@@ -219,18 +245,18 @@ class ChromeDriverManager:
                 if self.system in ["Darwin", "Linux"]:
                     os.chmod(driver_path, 0o755)
                 
-                print(f"✅ ChromeDriver已安裝: {driver_path}")
+                print(f"ChromeDriver已安裝: {driver_path}")
                 
                 # 清理zip文件
                 zip_path.unlink()
                 
                 return driver_path
             else:
-                print("❌ 無法在解壓的文件中找到chromedriver")
+                print("無法在解壓的文件中找到chromedriver")
                 return None
                 
         except Exception as e:
-            print(f"❌ 安裝失敗: {e}")
+            print(f"安裝失敗: {e}")
             return None
     
     def get_chromedriver_path(self) -> Optional[Path]:
@@ -240,30 +266,49 @@ class ChromeDriverManager:
         Returns:
             ChromeDriver可執行文件的路徑
         """
+        # 獲取Chrome版本
+        chrome_version = self.get_chrome_version()
+        if chrome_version:
+            print(f"檢測到Chrome版本: {chrome_version}")
+        else:
+            print("無法檢測到Chrome瀏覽器，請確保已安裝Chrome")
+        
         # 檢查系統PATH中是否已有chromedriver
+        candidates = []
         existing_driver = self._find_in_path("chromedriver")
         if existing_driver:
-            print(f"✅ 找到現有的ChromeDriver: {existing_driver}")
-            return Path(existing_driver)
+            candidates.append(Path(existing_driver))
         
         # 檢查保存路徑中是否已有chromedriver
         for file in self.save_path.rglob("chromedriver*"):
             if not str(file).endswith(".zip"):
-                print(f"✅ 找到現有的ChromeDriver: {file}")
-                return file
+                candidates.append(file)
         
-        # 獲取Chrome版本
-        chrome_version = self.get_chrome_version()
+        # 嘗試找到版本匹配的ChromeDriver
+        for candidate in candidates:
+            print(f"找到現有的ChromeDriver: {candidate}")
+            if not chrome_version:
+                print("⚠️ 無法檢測Chrome版本，跳過相容性檢查")
+                return candidate
+            
+            driver_version = self.get_chromedriver_version(candidate)
+            if not driver_version:
+                print(f"無法判斷ChromeDriver版本，將嘗試其他來源")
+                continue
+            
+            if self._is_version_compatible(chrome_version, driver_version):
+                print(f"ChromeDriver版本相容: {driver_version}")
+                return candidate
+            
+            print(f"🔄 版本不匹配: Chrome {chrome_version} / ChromeDriver {driver_version}，將更新Driver")
+        
         if not chrome_version:
-            print("❌ 無法檢測到Chrome瀏覽器，請確保已安裝Chrome")
             return None
-        
-        print(f"✅ 檢測到Chrome版本: {chrome_version}")
         
         # 獲取下載URL
         url = self.get_download_url(chrome_version)
         if not url:
-            print("❌ 無法獲取對應版本的ChromeDriver下載鏈接")
+            print("❌ 無法獲取對應版本的ChromeDriver下載連結")
             return None
         
         # 下載並安裝
