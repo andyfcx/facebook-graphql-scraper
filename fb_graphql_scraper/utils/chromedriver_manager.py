@@ -178,11 +178,15 @@ class ChromeDriverManager:
             是否匹配
         """
         if self.system == "Darwin":  # macOS
-            return "mac" in platform_str
+            if self.architecture in ["arm64", "aarch64"]:
+                return platform_str in ["mac-arm64", "mac_arm64"] or ("mac" in platform_str and "arm" in platform_str)
+            return platform_str in ["mac-x64", "mac_x64"] or ("mac" in platform_str and "x64" in platform_str)
         elif self.system == "Windows":
             return "win" in platform_str
         elif self.system == "Linux":
-            return "linux" in platform_str
+            if self.architecture in ["arm64", "aarch64"]:
+                return platform_str in ["linux-arm64", "linux_arm64"] or ("linux" in platform_str and "arm" in platform_str)
+            return platform_str in ["linux64", "linux-x64", "linux_x64"] or ("linux" in platform_str and "x64" in platform_str)
         return False
     
     def download_chromedriver(self, url: str) -> Optional[Path]:
