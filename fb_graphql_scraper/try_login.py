@@ -234,10 +234,10 @@ def get_credentials():
         print("(系統將安全地處理密碼 - 輸入時不會顯示密碼)\n")
         password = getpass.getpass("請輸入Facebook密碼: ")
         if not password:
-            print("✗ 密碼不能為空！")
+            print("密碼不能為空！")
             return None, None
     else:
-        print(f"✓ 已從 .env 加載密碼")
+        print(f"已從 .env 讀取密碼")
     
     return email, password
 

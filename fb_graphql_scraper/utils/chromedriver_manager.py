@@ -145,14 +145,12 @@ class ChromeDriverManager:
             
             versions = data.get("versions", [])
             
-            # 查找匹配的版本
             for version_info in versions:
                 version = version_info.get("version", "")
                 if version.startswith(chrome_version.split('.')[0]):  # 匹配主版本號
                     downloads = version_info.get("downloads", {})
                     chromedriver_urls = downloads.get("chromedriver", [])
                     
-                    # 找到匹配系統和架構的下載鏈接
                     for download in chromedriver_urls:
                         platform_str = download.get("platform", "").lower()
                         url = download.get("url", "")
@@ -160,11 +158,11 @@ class ChromeDriverManager:
                         if self._match_platform(platform_str):
                             return url
             
-            print(f"⚠️ 未找到Chrome {chrome_version}的官方版本")
+            print(f"未找到Chrome {chrome_version}的官方版本")
             return None
             
         except Exception as e:
-            print(f"❌ 查詢下載鏈接失敗: {e}")
+            print(f"查詢下載連結失敗: {e}")
             return None
     
     def _match_platform(self, platform_str: str) -> bool:
@@ -360,10 +358,10 @@ def setup_chromedriver(save_path: Optional[str] = None) -> Optional[Path]:
     
     print("=" * 60)
     if driver_path:
-        print(f"✅ ChromeDriver 準備就緒!")
-        print(f"📍 路徑: {driver_path}")
+        print(f"ChromeDriver 準備就緒!")
+        print(f"路徑: {driver_path}")
     else:
-        print("❌ ChromeDriver 設置失敗")
+        print("ChromeDriver 設置失敗")
     print("=" * 60)
     
     return driver_path
