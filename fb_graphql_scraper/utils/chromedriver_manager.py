@@ -38,6 +38,25 @@ class ChromeDriverManager:
         self.architecture = platform.machine()  # 'x86_64', 'arm64', etc.
         self.save_path = Path(save_path) if save_path else Path.cwd() / "drivers"
         self.save_path.mkdir(parents=True, exist_ok=True)
+
+    def _get_platform_tag(self) -> str:
+        """
+        取得 Chrome for Testing 對應的 platform tag
+        (例如: mac-x64, mac-arm64, win64, linux64, linux-arm64)
+        """
+        arch = self.architecture.lower()
+        if self.system == "Darwin":
+            if arch in ["arm64", "aarch64"]:
+                return "mac-arm64"
+            return "mac-x64"
+        if self.system == "Windows":
+            # CfT 主要提供 win32 / win64
+            return "win64"
+        if self.system == "Linux":
+            if arch in ["arm64", "aarch64"]:
+                return "linux-arm64"
+            return "linux64"
+        return ""
         
     def get_chrome_version(self) -> Optional[str]:
         """
@@ -145,6 +164,8 @@ class ChromeDriverManager:
             
             versions = data.get("versions", [])
             
+            platform_tag = self._get_platform_tag()
+
             for version_info in versions:
                 version = version_info.get("version", "")
                 if version.startswith(chrome_version.split('.')[0]):  # 匹配主版本號
@@ -155,6 +176,8 @@ class ChromeDriverManager:
                         platform_str = download.get("platform", "").lower()
                         url = download.get("url", "")
                         
+                        if platform_tag and platform_str == platform_tag:
+                            return url
                         if self._match_platform(platform_str):
                             return url
             
@@ -180,12 +203,54 @@ class ChromeDriverManager:
                 return platform_str in ["mac-arm64", "mac_arm64"] or ("mac" in platform_str and "arm" in platform_str)
             return platform_str in ["mac-x64", "mac_x64"] or ("mac" in platform_str and "x64" in platform_str)
         elif self.system == "Windows":
-            return "win" in platform_str
+            if self.architecture in ["arm64", "aarch64"]:
+                return platform_str in ["win64", "win_arm64", "win-arm64"] or "win64" in platform_str
+            return platform_str in ["win64", "win32"] or "win" in platform_str
         elif self.system == "Linux":
             if self.architecture in ["arm64", "aarch64"]:
                 return platform_str in ["linux-arm64", "linux_arm64"] or ("linux" in platform_str and "arm" in platform_str)
             return platform_str in ["linux64", "linux-x64", "linux_x64"] or ("linux" in platform_str and "x64" in platform_str)
         return False
+
+    def _update_env_file(self, driver_path: Path, env_path: Optional[Path] = None) -> bool:
+        """
+        更新 .env 中的 CHROMEDRIVER_PATH
+        """
+        if env_path is None:
+            env_path = Path(__file__).resolve().parent.parent / ".env"
+
+        new_line = f"CHROMEDRIVER_PATH={driver_path}\n"
+
+        try:
+            if not env_path.exists():
+                env_path.write_text(new_line, encoding="utf-8")
+                print(f"已建立 .env 並寫入 CHROMEDRIVER_PATH: {env_path}")
+                return True
+
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+            updated = False
+            out_lines = []
+            for line in lines:
+                if line.strip().startswith("CHROMEDRIVER_PATH="):
+                    out_lines.append(new_line.rstrip("\n"))
+                    updated = True
+                else:
+                    out_lines.append(line)
+            if not updated:
+                out_lines.append(new_line.rstrip("\n"))
+
+            env_path.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+            print(f"已更新 .env 的 CHROMEDRIVER_PATH: {env_path}")
+            return True
+        except Exception as e:
+            print(f"無法更新 .env: {e}")
+            return False
+
+    def persist_driver_path(self, driver_path: Path, env_path: Optional[Path] = None) -> None:
+        """
+        將 ChromeDriver 路徑寫入 .env
+        """
+        self._update_env_file(driver_path, env_path)
     
     def download_chromedriver(self, url: str) -> Optional[Path]:
         """
@@ -360,6 +425,7 @@ def setup_chromedriver(save_path: Optional[str] = None) -> Optional[Path]:
     if driver_path:
         print(f"ChromeDriver 準備就緒!")
         print(f"路徑: {driver_path}")
+        manager.persist_driver_path(driver_path)
     else:
         print("ChromeDriver 設置失敗")
     print("=" * 60)
