@@ -15,44 +15,45 @@ import getpass
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.common.exceptions import TimeoutException
 import random
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fb_graphql_scraper.base.base_page import BasePage
-from selenium.webdriver.chrome.service import Service
-from seleniumwire import webdriver
 
 
 class FacebookLoginTester(BasePage):
     CDP_PORT = 9222
     
-    def __init__(self, driver_path: str, open_browser: bool = True):
+    def __init__(self, open_browser: bool = True):
         """
         初始化登錄測試器
         
         Args:
-            driver_path: Chrome驅動程序的路徑
             open_browser: 是否打開瀏覽器（True = 可視，False = 無頭模式）
         """
         # 不調用 super().__init__() 而是手動初始化驅動，以便添加 CDP 端口
         chrome_options = self._build_options(open_browser)
-        # 添加 CDP 端口用於外部程式監控
-        chrome_options.add_argument(f"--remote-debugging-port={self.CDP_PORT}")
+        # 連接到已開啟的 Chrome CDP 端口（不啟動 ChromeDriver）
+        chrome_options.add_experimental_option(
+            "debuggerAddress",
+            f"127.0.0.1:{self.CDP_PORT}",
+        )
         
-        service = Service(driver_path)
-        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        self.driver = webdriver.Chrome(options=chrome_options)
         self.driver.maximize_window()
         
         self.wait = WebDriverWait(self.driver, 10)
         self.actions = ActionChains(self.driver)
         
-        print(f"\n✓ Chrome DevTools Protocol 端口已開啟: http://localhost:{self.CDP_PORT}")
+        print(f"\n✓ 已連接到 Chrome DevTools Protocol: http://localhost:{self.CDP_PORT}")
         print("  外部程式可通過此端口監控瀏覽器狀態")
     
     @staticmethod
@@ -146,7 +147,9 @@ class FacebookLoginTester(BasePage):
                 
                 # 使用ActionChains模擬人類點擊（可能有額外的延遲）
                 time.sleep(random.uniform(0.3, 0.8))
+                print("BEFORE_SUBMIT")
                 self.actions.move_to_element(login_button).click().perform()
+                print("AFTER_SUBMIT")
                 print("   ✓ 已點擊登錄按鈕")
             except Exception as e:
                 print(f"   ✗ 無法點擊登錄按鈕: {e}")
@@ -155,6 +158,17 @@ class FacebookLoginTester(BasePage):
             # 步驟5：等待登錄完成
             print("[步驟 5/5] 等待登錄完成...")
             time.sleep(3)  # 初始等待
+            pre_url = self.driver.current_url
+            try:
+                self.wait.until(
+                    lambda d: d.current_url != pre_url
+                    and d.execute_script("return document.readyState") == "complete"
+                )
+            except TimeoutException:
+                pass
+            print("AFTER_NAVIGATION")
+            print(f"FINAL_URL: {self.driver.current_url}")
+            print(f"FINAL_TITLE: {self.driver.title}")
             
             # 檢查是否登錄成功（通過檢查URL或特定元素）
             current_url = self.driver.current_url
@@ -248,34 +262,9 @@ def main():
     print("  Facebook GraphQL Scraper - 登錄測試工具")
     print("="*60)
     
-    # 加載 .env 文件
-    env_path = Path(__file__).parent / ".env"
-    load_dotenv(env_path)
-    
-    # 從環境變量讀取 ChromeDriver 路徑
-    driver_path = os.getenv("CHROMEDRIVER_PATH", "").strip()
-    
-    # 如果 .env 中沒有設置，則提示用戶輸入
-    if not driver_path:
-        print("\n在 .env 文件中未找到 CHROMEDRIVER_PATH")
-        print("\n請輸入Chrome驅動程序的完整路徑:")
-        print("提示：可以通過以下方式獲取:")
-        print("  1. 訪問 https://chromedriver.chromium.org/")
-        print("  2. 下載與你Chrome版本相對應的驅動程序")
-        print("  3. 將驅動程序放在上述路徑中\n")
-        driver_path = input("請輸入Chrome驅動程序的完整路徑: ").strip()
-    else:
-        print(f"\n✓ 已從 .env 加載 ChromeDriver 路徑")
-    
-    if not Path(driver_path).exists():
-        print(f"\n✗ 找不到Chrome驅動程序: {driver_path}")
-        print("提示：可以通過以下方式獲取:")
-        print("  1. 訪問 https://chromedriver.chromium.org/")
-        print("  2. 下載與你Chrome版本相對應的驅動程序")
-        print("  3. 將驅動程序放在上述路徑中")
-        return
-    
-    print(f"✓ 已找到Chrome驅動程序: {driver_path}\n")
+    print("\n請先啟動 Chrome，並確保已開啟遠端除錯埠:")
+    print("  --remote-debugging-port=9222")
+    print("  （必要時可指定 --user-data-dir 以避免與現有瀏覽器衝突）\n")
     
     # 獲取登錄憑據
     email, password = get_credentials()
@@ -284,8 +273,8 @@ def main():
     
     tester = None
     try:
-        print("\n正在啟動Chrome瀏覽器...")
-        tester = FacebookLoginTester(driver_path=driver_path, open_browser=True)
+        print("\n正在連接到已開啟的Chrome瀏覽器...")
+        tester = FacebookLoginTester(open_browser=True)
         
         success = tester.login(email, password)
         
