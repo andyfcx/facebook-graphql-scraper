@@ -18,6 +18,13 @@ chrome_options.add_experimental_option(
 chrome_options.add_experimental_option(
     "useAutomationExtension", False
 )
+chrome_options.add_argument("--no-first-run")
+chrome_options.add_argument("--no-default-browser-check")
+
+service = Service(
+    "/path/to/chromedriver",
+    service_args=["--verbose", "--log-path=/tmp/chromedriver.log"]
+)
 
 service = Service("/Users/y/facebook-graphql-scraper/drivers/chromedriver-mac-x64/chromedriver")
 
