@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 chrome_options = Options()
-chrome_options.add_argument("--remote-debugging-port=9222")
+chrome_options.add_argument("--remote-debugging-port=0")  # Allow chrome to choose the port automatically
 chrome_options.add_argument(
     "--user-data-dir=/Users/y/Library/Application Support/Google/Chrome"
 )
@@ -20,11 +20,6 @@ chrome_options.add_experimental_option(
 )
 chrome_options.add_argument("--no-first-run")
 chrome_options.add_argument("--no-default-browser-check")
-
-# service = Service(
-#     "/path/to/chromedriver",
-#     service_args=["--verbose", "--log-path=./tmp/chromedriver.log"]
-# )
 
 service = Service("/Users/y/facebook-graphql-scraper/drivers/chromedriver-mac-x64/chromedriver",
             service_args=["--verbose", "--log-path=./tmp/chromedriver.log"])
