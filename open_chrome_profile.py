@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 chrome_options = Options()
-chrome_options.add_argument("--remote-debugging-port=0")  # Allow chrome to choose the port automatically
+chrome_options.add_argument("--remote-debugging-pipe")
 chrome_options.add_argument(
     "--user-data-dir=/Users/y/Library/Application Support/Google/Chrome"
 )
