@@ -8,7 +8,7 @@ load_dotenv()
 chrome_options = Options()
 chrome_options.add_argument("--remote-debugging-pipe")
 chrome_options.add_argument(
-    "--user-data-dir=/Users/y/Library/Application Support/Google/Chrome"
+    "--user-data-dir=/Users/y/chrome-fb-user-data"
 )
 chrome_options.add_argument("--profile-directory=Default")
 chrome_options.add_argument("--disable-blink-features=AutomationControlled")
