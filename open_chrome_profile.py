@@ -50,4 +50,4 @@ driver = webdriver.Chrome(
 driver.get("https://www.facebook.com")
 
 # Detach from the session without closing the browser.
-driver.quit()
+# driver.quit()
