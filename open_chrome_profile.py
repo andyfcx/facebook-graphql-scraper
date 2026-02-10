@@ -23,7 +23,7 @@ chrome_options.add_argument("--no-default-browser-check")
 
 service = Service(
     "/path/to/chromedriver",
-    service_args=["--verbose", "--log-path=/tmp/chromedriver.log"]
+    service_args=["--verbose", "--log-path=./tmp/chromedriver.log"]
 )
 
 service = Service("/Users/y/facebook-graphql-scraper/drivers/chromedriver-mac-x64/chromedriver")
