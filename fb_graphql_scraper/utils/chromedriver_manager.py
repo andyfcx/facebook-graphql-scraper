@@ -11,6 +11,7 @@ import platform
 import subprocess
 import re
 import urllib.request
+import ssl
 import zipfile
 import shutil
 from pathlib import Path
@@ -19,12 +20,8 @@ from typing import Optional, Tuple
 
 class ChromeDriverManager:
     """自動管理ChromeDriver下載和安裝"""
-    
-    # ChromeDriver下載源
     CHROMEDRIVER_REPO = "https://googlechromelabs.github.io/chrome-for-testing/"
     CHROMEDRIVER_API = "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json"
-    
-    # 備用下載源
     CHROMEDRIVER_MIRROR = "https://chromedriver.chromium.org/downloads"
     
     def __init__(self, save_path: Optional[str] = None):
@@ -38,6 +35,48 @@ class ChromeDriverManager:
         self.architecture = platform.machine()  # 'x86_64', 'arm64', etc.
         self.save_path = Path(save_path) if save_path else Path.cwd() / "drivers"
         self.save_path.mkdir(parents=True, exist_ok=True)
+        self._ssl_context = self._build_ssl_context()
+
+    @staticmethod
+    def _build_ssl_context() -> ssl.SSLContext:
+        """
+        建立 HTTPS 用的 SSL context，優先使用 certifi 提供的 CA。
+        """
+        try:
+            import certifi
+
+            return ssl.create_default_context(cafile=certifi.where())
+        except Exception:
+            return ssl.create_default_context()
+
+    def _open_url(self, url: str, timeout: int = 10):
+        """
+        以統一 SSL context 開啟 URL。
+        """
+        opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=self._ssl_context))
+        return opener.open(url, timeout=timeout)
+
+    def _download_file(self, url: str, filename: Path, chunk_size: int = 1024 * 64) -> None:
+        """
+        使用統一 SSL context 下載檔案並顯示進度。
+        """
+        with self._open_url(url, timeout=30) as response, open(filename, "wb") as out:
+            total_size = response.getheader("Content-Length")
+            total_size = int(total_size) if total_size else 0
+            downloaded = 0
+
+            while True:
+                chunk = response.read(chunk_size)
+                if not chunk:
+                    break
+                out.write(chunk)
+                downloaded += len(chunk)
+                if total_size > 0:
+                    percent = min(downloaded * 100 // total_size, 100)
+                    print(f"\r⏳ 下載進度: {percent}%", end="")
+
+        if total_size > 0:
+            print()
 
     def _get_platform_tag(self) -> str:
         """
@@ -159,7 +198,7 @@ class ChromeDriverManager:
             print(f"🔍 正在查詢Chrome {chrome_version} 的ChromeDriver...")
             
             # 使用Google Chrome for Testing API
-            with urllib.request.urlopen(self.CHROMEDRIVER_API, timeout=10) as response:
+            with self._open_url(self.CHROMEDRIVER_API, timeout=10) as response:
                 data = json.loads(response.read().decode())
             
             versions = data.get("versions", [])
@@ -265,14 +304,8 @@ class ChromeDriverManager:
         try:
             print(f"正在下載ChromeDriver...")
             filename = self.save_path / "chromedriver.zip"
-            
-            # 顯示下載進度
-            def download_progress(block_num, block_size, total_size):
-                downloaded = block_num * block_size
-                percent = min(downloaded * 100 // total_size, 100)
-                print(f"\r⏳ 下載進度: {percent}%", end="")
-            
-            urllib.request.urlretrieve(url, filename, download_progress)
+
+            self._download_file(url, filename)
             print("\n下載完成")
             
             return self._extract_and_install(filename)
@@ -375,7 +408,7 @@ class ChromeDriverManager:
         # 獲取下載URL
         url = self.get_download_url(chrome_version)
         if not url:
-            print("❌ 無法獲取對應版本的ChromeDriver下載連結")
+            print("無法獲取對應版本的ChromeDriver下載連結")
             return None
         
         # 下載並安裝
@@ -410,13 +443,13 @@ def setup_chromedriver(save_path: Optional[str] = None) -> Optional[Path]:
         ChromeDriver可執行文件的路徑
     """
     print("=" * 60)
-    print("🚀 ChromeDriver 自動管理工具")
+    print("ChromeDriver 自動管理工具")
     print("=" * 60)
     
     manager = ChromeDriverManager(save_path)
-    print(f"📍 系統: {manager.system}")
-    print(f"🏗️  架構: {manager.architecture}")
-    print(f"💾 保存路徑: {manager.save_path}")
+    print(f"系統: {manager.system}")
+    print(f"架構: {manager.architecture}")
+    print(f"保存路徑: {manager.save_path}")
     print("-" * 60)
     
     driver_path = manager.get_chromedriver_path()
