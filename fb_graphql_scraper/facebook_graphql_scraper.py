@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-import pandas as pd
 import time
 import json
 from bs4 import BeautifulSoup
 import requests
-from urllib.parse import parse_qs, unquote
 from fb_graphql_scraper.base.base_page import BasePage
 from fb_graphql_scraper.pages.page_optional import PageOptional
 from fb_graphql_scraper.utils.parser import RequestsParser

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import pandas as pd
 from seleniumwire.utils import decode
 import json
 from urllib.parse import parse_qs, unquote

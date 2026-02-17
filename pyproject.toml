@@ -1,6 +1,6 @@
 [project]
 name = "facebook-graphql-scraper"
-version = "0.1.0"
+version = "0.1.1"
 description = "Implement Facebook scraper for post data retrieval"
 readme = "README.md"
 requires-python = ">=3.11"
